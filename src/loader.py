@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from src.types import Item, Variant, BinType
+from src.types import Item, Variant, BinType, Geometry
 
 
 def load_instance(path: str | Path) -> dict:
@@ -27,9 +27,13 @@ def load_instance(path: str | Path) -> dict:
 
     families = sorted(family_names.keys())
 
+    geo = data["geometry"]
+    geometry = Geometry(cabinet_height=geo["cabinet_height"], separator=geo["separator"])
+
     return {
         "family_names": family_names,
         "families": families,
         "bin_types": bin_types,
         "items": items,
+        "geometry": geometry,
     }

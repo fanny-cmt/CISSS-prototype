@@ -11,7 +11,8 @@ if __name__ == "__main__":
         items=instance["items"],
         families=instance["families"],
         bin_types=instance["bin_types"],
-        config=SolverConfig(cabinet_height=180, time_limit=30, num_workers=8),
+        geometry=instance["geometry"],
+        config=SolverConfig(time_limit=30, num_workers=8),
     )
 
     print(f"Bins: {result.num_bins}, Armoires: {result.num_cabinets}")

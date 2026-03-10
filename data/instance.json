@@ -1,4 +1,8 @@
 {
+  "geometry": {
+    "cabinet_height": 100,
+    "separator": 1
+  },
   "family_names": {
     "0": "Pansements",
     "1": "Gants",
@@ -9,9 +13,9 @@
     "6": "Prélèvements"
   },
   "bin_types": [
-    {"W": 80, "D": 60, "H": 15, "max_weight": 1000},
-    {"W": 80, "D": 60, "H": 20, "max_weight": 1500},
-    {"W": 80, "D": 60, "H": 30, "max_weight": 2500}
+    {"W": 70, "D": 50, "H": 15, "max_weight": 1000},
+    {"W": 70, "D": 50, "H": 19, "max_weight": 1500},
+    {"W": 70, "D": 50, "H": 28, "max_weight": 2500}
   ],
   "items": [
     {"id": 0, "family": 0, "weight": 150, "variants": [{"w": 18, "d": 12, "h": 10}, {"w": 12, "d": 18, "h": 10}, {"w": 20, "d": 10, "h": 12}]},

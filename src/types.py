@@ -44,6 +44,7 @@ class BinSolution:
     W: int
     D: int
     H: int
+    occupied_H: int
     cabinet: int
     Z: int
     items: list[PlacedItem] = field(default_factory=list)
@@ -58,10 +59,14 @@ class Solution:
     bins: list[BinSolution]
 
 
+@dataclass(frozen=True)
+class Geometry:
+    cabinet_height: int
+    separator: int
+
+
 @dataclass
 class SolverConfig:
-    cabinet_height: int = 180
-    separator: int = 1
     time_limit: int = 60
     num_workers: int = 8
     symmetry_level: int = 2

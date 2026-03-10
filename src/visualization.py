@@ -30,7 +30,7 @@ def plot_bins(solution: Solution) -> None:
         D = b.D
 
         total_weight = sum(item.weight for item in b.items)
-        ax.set_title(f"Tiroir {b.bin_id} (type {b.type}) H={b.H}cm\nArmoire {b.cabinet} Z={b.Z}cm — {total_weight}g")
+        ax.set_title(f"Tiroir {b.bin_id} (type {b.type}) H={b.H}cm — épaisseur={b.occupied_H}cm\nArmoire {b.cabinet} Z={b.Z}cm — {total_weight}g")
         ax.set_xlim(0, W)
         ax.set_ylim(0, D)
         ax.set_aspect("equal")

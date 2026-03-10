@@ -1,6 +1,6 @@
 from ortools.sat.python import cp_model
 
-from src.types import Item, BinType, PlacedItem, BinSolution, Solution, SolverConfig
+from src.types import Item, BinType, Geometry, PlacedItem, BinSolution, Solution, SolverConfig
 from src.model import build_model
 
 
@@ -32,6 +32,7 @@ def _extract_solution(solver: cp_model.CpSolver, items: list[Item], original_ids
     W_of_bin = variables["W_of_bin"]
     D_of_bin = variables["D_of_bin"]
     H_of_bin = variables["H_of_bin"]
+    occupied_height_of_bin = variables["occupied_height_of_bin"]
     Z_of_bin = variables["Z_of_bin"]
     cabinet_of_bin = variables["cabinet_of_bin"]
     variant_of = variables["variant_of"]
@@ -50,6 +51,7 @@ def _extract_solution(solver: cp_model.CpSolver, items: list[Item], original_ids
                 W=solver.value(W_of_bin[k]),
                 D=solver.value(D_of_bin[k]),
                 H=solver.value(H_of_bin[k]),
+                occupied_H=solver.value(occupied_height_of_bin[k]),
                 cabinet=solver.value(cabinet_of_bin[k]),
                 Z=solver.value(Z_of_bin[k]),
             )
@@ -72,6 +74,7 @@ def solve_2d_bins_fast(
     items: list[Item],
     families,
     bin_types: list[BinType],
+    geometry: Geometry,
     config: SolverConfig | None = None,
 ) -> Solution:
     if config is None:
@@ -82,7 +85,7 @@ def solve_2d_bins_fast(
     _validate_items(sorted_items, bin_types)
 
     print("[2/5] Building model (variables, constraints, objective)...")
-    model, variables = build_model(sorted_items, families, bin_types, config)
+    model, variables = build_model(sorted_items, families, bin_types, geometry, config)
 
     print(f"[3/5] Solving (time_limit={config.time_limit}s, workers={config.num_workers})...")
     solver = cp_model.CpSolver()
