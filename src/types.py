@@ -1,18 +1,19 @@
 from dataclasses import dataclass, field
 
-
-@dataclass
+@dataclass(frozen=True)
+class Variant:
+    w: int
+    d: int
+@dataclass(frozen=True)
 class Item:
     id: int
     family: int
-    w: int
-    d: int
-
-
+    variants: list[Variant]
 @dataclass
 class PlacedItem:
     item: int
     family: int
+    variant: int
     w: int
     d: int
     x: int

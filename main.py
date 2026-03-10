@@ -1,4 +1,4 @@
-from src.types import Item, SolverConfig
+from src.types import Item, Variant, SolverConfig
 from src.solver import solve_2d_bins_fast
 from src.visualization import plot_bins
 
@@ -16,37 +16,36 @@ if __name__ == "__main__":
     }
 
     families = range(7)
-
     items = [
-        Item(id=0, family=0, w=18, d=12),
-        Item(id=1, family=0, w=22, d=14),
-        Item(id=2, family=0, w=26, d=18),
-        Item(id=3, family=0, w=20, d=16),
+        Item(id=0, family=0, variants=[Variant(18,12), Variant(12,18), Variant(20,10)]),
+        Item(id=1, family=0, variants=[Variant(22,14), Variant(14,22), Variant(24,12)]),
+        Item(id=2, family=0, variants=[Variant(26,18), Variant(18,26), Variant(28,16)]),
+        Item(id=3, family=0, variants=[Variant(20,16), Variant(16,20), Variant(22,14)]),
 
-        Item(id=4, family=1, w=44, d=12),
-        Item(id=5, family=1, w=48, d=14),
-        Item(id=6, family=1, w=30, d=16),
+        Item(id=4, family=1, variants=[Variant(44,12), Variant(12,44), Variant(46,10)]),
+        Item(id=5, family=1, variants=[Variant(48,14), Variant(14,48), Variant(50,12)]),
+        Item(id=6, family=1, variants=[Variant(30,16), Variant(16,30), Variant(32,14)]),
 
-        Item(id=7, family=2, w=24, d=18),
-        Item(id=8, family=2, w=26, d=20),
-        Item(id=9, family=2, w=28, d=22),
-        Item(id=10, family=2, w=36, d=24),
+        Item(id=7, family=2, variants=[Variant(24,18), Variant(18,24), Variant(26,16)]),
+        Item(id=8, family=2, variants=[Variant(26,20), Variant(20,26), Variant(28,18)]),
+        Item(id=9, family=2, variants=[Variant(28,22), Variant(22,28), Variant(30,20)]),
+        Item(id=10, family=2, variants=[Variant(36,24), Variant(24,36), Variant(38,22)]),
 
-        Item(id=11, family=3, w=30, d=20),
-        Item(id=12, family=3, w=24, d=18),
-        Item(id=13, family=3, w=32, d=22),
+        Item(id=11, family=3, variants=[Variant(30,20), Variant(20,30), Variant(32,18)]),
+        Item(id=12, family=3, variants=[Variant(24,18), Variant(18,24), Variant(26,16)]),
+        Item(id=13, family=3, variants=[Variant(32,22), Variant(22,32), Variant(34,20)]),
 
-        Item(id=14, family=4, w=28, d=16),
-        Item(id=15, family=4, w=26, d=18),
-        Item(id=16, family=4, w=30, d=20),
+        Item(id=14, family=4, variants=[Variant(28,16), Variant(16,28), Variant(30,14)]),
+        Item(id=15, family=4, variants=[Variant(26,18), Variant(18,26), Variant(28,16)]),
+        Item(id=16, family=4, variants=[Variant(30,20), Variant(20,30), Variant(32,18)]),
 
-        Item(id=17, family=5, w=22, d=14),
-        Item(id=18, family=5, w=24, d=16),
-        Item(id=19, family=5, w=20, d=12),
+        Item(id=17, family=5, variants=[Variant(22,14), Variant(14,22), Variant(24,12)]),
+        Item(id=18, family=5, variants=[Variant(24,16), Variant(16,24), Variant(26,14)]),
+        Item(id=19, family=5, variants=[Variant(20,12), Variant(12,20), Variant(22,10)]),
 
-        Item(id=20, family=6, w=24, d=18),
-        Item(id=21, family=6, w=26, d=20),
-        Item(id=22, family=6, w=28, d=22),
+        Item(id=20, family=6, variants=[Variant(24,18), Variant(18,24), Variant(26,16)]),
+        Item(id=21, family=6, variants=[Variant(26,20), Variant(20,26), Variant(28,18)]),
+        Item(id=22, family=6, variants=[Variant(28,22), Variant(22,28), Variant(30,20)]),
     ]
 
     # 3 types de bacs

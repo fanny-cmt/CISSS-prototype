@@ -6,7 +6,7 @@ from src.model import build_model
 
 def _preprocess_items(items: list[Item]) -> tuple[list[int], list[Item]]:
     indexed_items = list(enumerate(items))
-    indexed_items.sort(key=lambda p: (p[1].family, -(p[1].w * p[1].d)))
+    indexed_items.sort(key=lambda p: (p[1].family, -max(v.w * v.d for v in p[1].variants)))
 
     original_ids = [idx for idx, _ in indexed_items]
     sorted_items = [item for _, item in indexed_items]
@@ -15,8 +15,13 @@ def _preprocess_items(items: list[Item]) -> tuple[list[int], list[Item]]:
 
 def _validate_items(items: list[Item], bin_types: list[tuple[int, int]]) -> None:
     for item in items:
-        if all(item.w > W or item.d > D for W, D in bin_types):
-            raise ValueError(f"Objet impossible à placer: {(item.w, item.d)}")
+        fits = any(
+            v.w <= W and v.d <= D
+            for v in item.variants
+            for W, D in bin_types
+        )
+        if not fits:
+            raise ValueError(f"Objet {item.id} impossible à placer: aucune variante ne rentre dans aucun bac")
 
 
 def _extract_solution(solver: cp_model.CpSolver, items: list[Item], original_ids: list[int], variables: dict) -> list[BinSolution]:
@@ -26,6 +31,9 @@ def _extract_solution(solver: cp_model.CpSolver, items: list[Item], original_ids
     bin_type = variables["bin_type"]
     W_of_bin = variables["W_of_bin"]
     D_of_bin = variables["D_of_bin"]
+    variant_of = variables["variant_of"]
+    eff_w = variables["eff_w"]
+    eff_d = variables["eff_d"]
 
     bins: dict[int, BinSolution] = {}
     for i, item in enumerate(items):
@@ -41,8 +49,9 @@ def _extract_solution(solver: cp_model.CpSolver, items: list[Item], original_ids
         bins[k].items.append(PlacedItem(
             item=original_ids[i],
             family=item.family,
-            w=item.w,
-            d=item.d,
+            variant=solver.value(variant_of[i]),
+            w=solver.value(eff_w[i]),
+            d=solver.value(eff_d[i]),
             x=solver.value(x[i]),
             y=solver.value(y[i]),
         ))

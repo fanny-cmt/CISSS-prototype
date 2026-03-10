@@ -65,7 +65,7 @@ def plot_bins(solution: Solution) -> None:
             ax.text(
                 item.x + item.w / 2,
                 item.y + item.d / 2,
-                f"{item.item}\nF{item.family}",
+                f"{item.item}\nF{item.family} V{item.variant}",
                 ha="center",
                 va="center",
                 fontsize=9
