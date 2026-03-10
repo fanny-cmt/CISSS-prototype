@@ -1,7 +1,8 @@
 {
   "geometry": {
     "cabinet_height": 100,
-    "separator": 1
+    "separator": 1,
+    "drawer_gap": 3
   },
   "family_names": {
     "0": "Pansements",
@@ -13,8 +14,8 @@
     "6": "Prélèvements"
   },
   "bin_types": [
-    {"W": 70, "D": 50, "H": 15, "max_weight": 1000},
-    {"W": 70, "D": 50, "H": 19, "max_weight": 1500},
+    {"W": 70, "D": 50, "H": 15, "max_weight": 2500},
+    {"W": 70, "D": 50, "H": 19, "max_weight": 2500},
     {"W": 70, "D": 50, "H": 28, "max_weight": 2500}
   ],
   "items": [

@@ -63,6 +63,7 @@ class Solution:
 class Geometry:
     cabinet_height: int
     separator: int
+    drawer_gap: int
 
 
 @dataclass

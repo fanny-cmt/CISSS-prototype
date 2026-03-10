@@ -28,7 +28,7 @@ def load_instance(path: str | Path) -> dict:
     families = sorted(family_names.keys())
 
     geo = data["geometry"]
-    geometry = Geometry(cabinet_height=geo["cabinet_height"], separator=geo["separator"])
+    geometry = Geometry(cabinet_height=geo["cabinet_height"], separator=geo["separator"], drawer_gap=geo["drawer_gap"])
 
     return {
         "family_names": family_names,

@@ -303,6 +303,7 @@ def add_cabinet_constraints(model: cp_model.CpModel, items: list[Item], variable
     num_cabinets = variables["num_cabinets"]
     cabinet_of_bin = variables["cabinet_of_bin"]
     cabinet_height = geometry.cabinet_height
+    drawer_gap = geometry.drawer_gap
 
     # Used bins must be in a valid cabinet
     # Unused bins: z=0, cabinet=0 (no impact)
@@ -315,7 +316,7 @@ def add_cabinet_constraints(model: cp_model.CpModel, items: list[Item], variable
     for k in range(num_items):
         model.add(Z_of_bin[k] + occupied_height_of_bin[k] <= cabinet_height).only_enforce_if(used_bin[k])
 
-    # Non-overlapping on Z axis for bins in the same cabinet
+    # Non-overlapping on Z axis for bins in the same cabinet (with drawer gap)
     for k in range(num_items):
         for l in range(k + 1, num_items):
             same_cabinet = model.new_bool_var(f"same_cabinet[{k},{l}]")
@@ -330,8 +331,8 @@ def add_cabinet_constraints(model: cp_model.CpModel, items: list[Item], variable
             k_above_l = model.new_bool_var(f"k_above_l[{k},{l}]")
             l_above_k = model.new_bool_var(f"l_above_k[{k},{l}]")
 
-            model.add(Z_of_bin[l] + occupied_height_of_bin[l] <= Z_of_bin[k]).only_enforce_if(k_above_l)
-            model.add(Z_of_bin[k] + occupied_height_of_bin[k] <= Z_of_bin[l]).only_enforce_if(l_above_k)
+            model.add(Z_of_bin[l] + occupied_height_of_bin[l] + drawer_gap <= Z_of_bin[k]).only_enforce_if(k_above_l)
+            model.add(Z_of_bin[k] + occupied_height_of_bin[k] + drawer_gap <= Z_of_bin[l]).only_enforce_if(l_above_k)
 
             model.add_bool_or([k_above_l, l_above_k, both_used_same.Not()])
 
