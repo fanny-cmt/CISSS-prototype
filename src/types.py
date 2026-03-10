@@ -1,16 +1,20 @@
 from dataclasses import dataclass, field
 
+
 @dataclass(frozen=True)
 class Variant:
     w: int
     d: int
+    h: int
 
 
 @dataclass(frozen=True)
 class BinType:
     W: int
     D: int
+    H: int
     max_weight: int
+
 
 @dataclass(frozen=True)
 class Item:
@@ -18,6 +22,8 @@ class Item:
     family: int
     weight: int
     variants: list[Variant]
+
+
 @dataclass
 class PlacedItem:
     item: int
@@ -26,6 +32,7 @@ class PlacedItem:
     variant: int
     w: int
     d: int
+    h: int
     x: int
     y: int
 
@@ -36,6 +43,9 @@ class BinSolution:
     type: int
     W: int
     D: int
+    H: int
+    cabinet: int
+    Z: int
     items: list[PlacedItem] = field(default_factory=list)
 
 
@@ -43,17 +53,21 @@ class BinSolution:
 class Solution:
     status: str
     objective: int | None
+    num_bins: int | None
+    num_cabinets: int | None
     bins: list[BinSolution]
 
 
 @dataclass
 class SolverConfig:
+    cabinet_height: int = 180
     separator: int = 1
     time_limit: int = 60
     num_workers: int = 8
     symmetry_level: int = 2
 
     # Objective weights
+    cabinet_weight: int = 100000
     bin_weight: int = 1000
     family_weight: int = 10
     span_weight: int = 1

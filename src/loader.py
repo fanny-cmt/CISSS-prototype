@@ -11,7 +11,7 @@ def load_instance(path: str | Path) -> dict:
     family_names = {int(k): v for k, v in data["family_names"].items()}
 
     bin_types = [
-        BinType(W=bt["W"], D=bt["D"], max_weight=bt["max_weight"])
+        BinType(W=bt["W"], D=bt["D"], H=bt["H"], max_weight=bt["max_weight"])
         for bt in data["bin_types"]
     ]
 
@@ -20,7 +20,7 @@ def load_instance(path: str | Path) -> dict:
             id=it["id"],
             family=it["family"],
             weight=it["weight"],
-            variants=[Variant(w=v["w"], d=v["d"]) for v in it["variants"]],
+            variants=[Variant(w=v["w"], d=v["d"], h=v["h"]) for v in it["variants"]],
         )
         for it in data["items"]
     ]

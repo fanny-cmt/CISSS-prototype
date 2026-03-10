@@ -31,9 +31,13 @@ def _extract_solution(solver: cp_model.CpSolver, items: list[Item], original_ids
     bin_type = variables["bin_type"]
     W_of_bin = variables["W_of_bin"]
     D_of_bin = variables["D_of_bin"]
+    H_of_bin = variables["H_of_bin"]
+    Z_of_bin = variables["Z_of_bin"]
+    cabinet_of_bin = variables["cabinet_of_bin"]
     variant_of = variables["variant_of"]
     eff_w = variables["eff_w"]
     eff_d = variables["eff_d"]
+    eff_h = variables["eff_h"]
 
     bins: dict[int, BinSolution] = {}
     for i, item in enumerate(items):
@@ -45,6 +49,9 @@ def _extract_solution(solver: cp_model.CpSolver, items: list[Item], original_ids
                 type=t,
                 W=solver.value(W_of_bin[k]),
                 D=solver.value(D_of_bin[k]),
+                H=solver.value(H_of_bin[k]),
+                cabinet=solver.value(cabinet_of_bin[k]),
+                Z=solver.value(Z_of_bin[k]),
             )
         bins[k].items.append(PlacedItem(
             item=original_ids[i],
@@ -53,6 +60,7 @@ def _extract_solution(solver: cp_model.CpSolver, items: list[Item], original_ids
             variant=solver.value(variant_of[i]),
             w=solver.value(eff_w[i]),
             d=solver.value(eff_d[i]),
+            h=solver.value(eff_h[i]),
             x=solver.value(x[i]),
             y=solver.value(y[i]),
         ))
@@ -86,14 +94,18 @@ def solve_2d_bins_fast(
 
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         print(f"No solution found (status: {solver.status_name(status)})")
-        return Solution(status=solver.status_name(status), objective=None, bins=[])
+        return Solution(status=solver.status_name(status), objective=None, num_bins=None, num_cabinets=None, bins=[])
 
     print(f"[4/5] Extracting solution (status: {solver.status_name(status)})...")
     bins = _extract_solution(solver, sorted_items, original_ids, variables)
 
-    print(f"[5/5] Done! {len(bins)} bins used.")
+    num_bins = solver.value(variables["num_bins"])
+    num_cabinets = solver.value(variables["num_cabinets"])
+    print(f"[5/5] Done! {num_bins} bins, {num_cabinets} cabinets.")
     return Solution(
         status=solver.status_name(status),
-        objective=solver.value(variables["num_bins"]),
+        objective=solver.objective_value,
+        num_bins=num_bins,
+        num_cabinets=num_cabinets,
         bins=bins,
     )
