@@ -10,7 +10,7 @@ def create_variables(model: cp_model.CpModel, items: list[Item], bin_types: list
     max_W = max(W for W, _ in bin_types)
     max_D = max(D for _, D in bin_types)
 
-    num_bins = model.new_int_var(1, 4, "num_bins")
+    num_bins = model.new_int_var(1, num_items, "num_bins") ## Todo : faire une heuristque qui calcule le nombre max de bins(genre 1 famille par bins)
 
     bin_of = [model.new_int_var(0, i, f"bin_of[{i}]") for i in range(num_items)]
     x = [model.new_int_var(0, max_W, f"x[{i}]") for i in range(num_items)]
