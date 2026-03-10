@@ -68,7 +68,7 @@ class Geometry:
 
 @dataclass
 class SolverConfig:
-    time_limit: int = 60
+    time_limit: int = 300
     num_workers: int = 8
     symmetry_level: int = 2
 
