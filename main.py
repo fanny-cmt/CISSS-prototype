@@ -5,14 +5,14 @@ from src.visualization import plot_bins, plot_cabinets
 
 
 if __name__ == "__main__":
-    instance = load_instance("data/instance.json")
+    instance = load_instance("data/instance_large.json")
 
     result = solve_2d_bins_fast(
         items=instance["items"],
         families=instance["families"],
         bin_types=instance["bin_types"],
         geometry=instance["geometry"],
-        config=SolverConfig(time_limit=30, num_workers=8),
+        config=SolverConfig(),
     )
 
     print(f"Bins: {result.num_bins}, Armoires: {result.num_cabinets}")

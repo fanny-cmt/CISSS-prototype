@@ -1,7 +1,24 @@
+import time
+
 from ortools.sat.python import cp_model
 
 from src.types import Item, BinType, Geometry, PlacedItem, BinSolution, Solution, SolverConfig
 from src.model import build_model
+
+
+class _ProgressCallback(cp_model.CpSolverSolutionCallback):
+    def __init__(self):
+        super().__init__()
+        self._start_time = time.time()
+        self._solution_count = 0
+
+    def on_solution_callback(self):
+        self._solution_count += 1
+        elapsed = time.time() - self._start_time
+        obj = self.objective_value
+        bound = self.best_objective_bound
+        gap = abs(obj - bound) / max(abs(obj), 1e-9) * 100
+        print(f"      [{elapsed:6.1f}s] Solution #{self._solution_count}: obj={obj:.0f} | bound={bound:.0f} | gap={gap:.2f}%")
 
 
 def _preprocess_items(items: list[Item]) -> tuple[list[int], list[Item]]:
@@ -93,7 +110,8 @@ def solve_2d_bins_fast(
     solver.parameters.num_search_workers = config.num_workers
     solver.parameters.symmetry_level = config.symmetry_level
 
-    status = solver.solve(model)
+    callback = _ProgressCallback()
+    status = solver.solve(model, callback)
 
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         print(f"No solution found (status: {solver.status_name(status)})")
@@ -104,7 +122,12 @@ def solve_2d_bins_fast(
 
     num_bins = solver.value(variables["num_bins"])
     num_cabinets = solver.value(variables["num_cabinets"])
+
+    obj = solver.objective_value
+    bound = solver.best_objective_bound
+    gap = abs(obj - bound) / max(abs(obj), 1e-9) * 100
     print(f"[5/5] Done! {num_bins} bins, {num_cabinets} cabinets.")
+    print(f"      Objective: {obj:.0f} | Bound: {bound:.0f} | Gap: {gap:.2f}%")
     return Solution(
         status=solver.status_name(status),
         objective=solver.objective_value,

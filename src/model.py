@@ -318,21 +318,21 @@ def add_cabinet_constraints(model: cp_model.CpModel, items: list[Item], variable
 
     # Non-overlapping on Z axis for bins in the same cabinet (with drawer gap)
     for k in range(num_items):
-        for l in range(k + 1, num_items):
-            same_cabinet = model.new_bool_var(f"same_cabinet[{k},{l}]")
-            model.add(cabinet_of_bin[k] == cabinet_of_bin[l]).only_enforce_if(same_cabinet)
-            model.add(cabinet_of_bin[k] != cabinet_of_bin[l]).only_enforce_if(same_cabinet.Not())
+        for m in range(k + 1, num_items):
+            same_cabinet = model.new_bool_var(f"same_cabinet[{k},{m}]")
+            model.add(cabinet_of_bin[k] == cabinet_of_bin[m]).only_enforce_if(same_cabinet)
+            model.add(cabinet_of_bin[k] != cabinet_of_bin[m]).only_enforce_if(same_cabinet.Not())
 
             # Both must be used and in the same cabinet to need separation
-            both_used_same = model.new_bool_var(f"both_used_same[{k},{l}]")
-            model.add_bool_and([used_bin[k], used_bin[l], same_cabinet]).only_enforce_if(both_used_same)
-            model.add_bool_or([used_bin[k].Not(), used_bin[l].Not(), same_cabinet.Not()]).only_enforce_if(both_used_same.Not())
+            both_used_same = model.new_bool_var(f"both_used_same[{k},{m}]")
+            model.add_bool_and([used_bin[k], used_bin[m], same_cabinet]).only_enforce_if(both_used_same)
+            model.add_bool_or([used_bin[k].Not(), used_bin[m].Not(), same_cabinet.Not()]).only_enforce_if(both_used_same.Not())
 
-            k_above_l = model.new_bool_var(f"k_above_l[{k},{l}]")
-            l_above_k = model.new_bool_var(f"l_above_k[{k},{l}]")
+            k_above_l = model.new_bool_var(f"k_above_l[{k},{m}]")
+            l_above_k = model.new_bool_var(f"l_above_k[{k},{m}]")
 
-            model.add(Z_of_bin[l] + occupied_height_of_bin[l] + drawer_gap <= Z_of_bin[k]).only_enforce_if(k_above_l)
-            model.add(Z_of_bin[k] + occupied_height_of_bin[k] + drawer_gap <= Z_of_bin[l]).only_enforce_if(l_above_k)
+            model.add(Z_of_bin[m] + occupied_height_of_bin[m] + drawer_gap <= Z_of_bin[k]).only_enforce_if(k_above_l)
+            model.add(Z_of_bin[k] + occupied_height_of_bin[k] + drawer_gap <= Z_of_bin[m]).only_enforce_if(l_above_k)
 
             model.add_bool_or([k_above_l, l_above_k, both_used_same.Not()])
 
