@@ -1,6 +1,6 @@
 from ortools.sat.python import cp_model
 
-from src.types import Item, PlacedItem, BinSolution, Solution, SolverConfig
+from src.types import Item, BinType, PlacedItem, BinSolution, Solution, SolverConfig
 from src.model import build_model
 
 
@@ -13,12 +13,12 @@ def _preprocess_items(items: list[Item]) -> tuple[list[int], list[Item]]:
     return original_ids, sorted_items
 
 
-def _validate_items(items: list[Item], bin_types: list[tuple[int, int]]) -> None:
+def _validate_items(items: list[Item], bin_types: list[BinType]) -> None:
     for item in items:
         fits = any(
-            v.w <= W and v.d <= D
+            v.w <= bt.W and v.d <= bt.D
             for v in item.variants
-            for W, D in bin_types
+            for bt in bin_types
         )
         if not fits:
             raise ValueError(f"Objet {item.id} impossible à placer: aucune variante ne rentre dans aucun bac")
@@ -49,6 +49,7 @@ def _extract_solution(solver: cp_model.CpSolver, items: list[Item], original_ids
         bins[k].items.append(PlacedItem(
             item=original_ids[i],
             family=item.family,
+            weight=item.weight,
             variant=solver.value(variant_of[i]),
             w=solver.value(eff_w[i]),
             d=solver.value(eff_d[i]),
@@ -62,7 +63,7 @@ def _extract_solution(solver: cp_model.CpSolver, items: list[Item], original_ids
 def solve_2d_bins_fast(
     items: list[Item],
     families,
-    bin_types: list[tuple[int, int]],
+    bin_types: list[BinType],
     config: SolverConfig | None = None,
 ) -> Solution:
     if config is None:

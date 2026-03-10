@@ -29,7 +29,8 @@ def plot_bins(solution: Solution) -> None:
         W = b.W
         D = b.D
 
-        ax.set_title(f"Tiroir {b.bin_id} (type {b.type})")
+        total_weight = sum(item.weight for item in b.items)
+        ax.set_title(f"Tiroir {b.bin_id} (type {b.type}) — {total_weight}g")
         ax.set_xlim(0, W)
         ax.set_ylim(0, D)
         ax.set_aspect("equal")
@@ -65,7 +66,7 @@ def plot_bins(solution: Solution) -> None:
             ax.text(
                 item.x + item.w / 2,
                 item.y + item.d / 2,
-                f"{item.item}\nF{item.family} V{item.variant}",
+                f"{item.item}\nF{item.family} V{item.variant}\n{item.weight}g",
                 ha="center",
                 va="center",
                 fontsize=9

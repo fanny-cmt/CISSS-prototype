@@ -1,14 +1,14 @@
 from ortools.sat.python import cp_model
 
-from src.types import Item, SolverConfig
+from src.types import Item, BinType, SolverConfig
 
 
-def create_variables(model: cp_model.CpModel, items: list[Item], bin_types: list[tuple[int, int]], families):
+def create_variables(model: cp_model.CpModel, items: list[Item], bin_types: list[BinType], families):
     num_items = len(items)
     num_bin_types = len(bin_types)
 
-    max_W = max(W for W, _ in bin_types)
-    max_D = max(D for _, D in bin_types)
+    max_W = max(bt.W for bt in bin_types)
+    max_D = max(bt.D for bt in bin_types)
 
     num_bins = model.new_int_var(1, num_items, "num_bins") ## Todo : faire une heuristque qui calcule le nombre max de bins(genre 1 famille par bins)
 
@@ -18,15 +18,18 @@ def create_variables(model: cp_model.CpModel, items: list[Item], bin_types: list
 
     bin_type = [model.new_int_var(0, num_bin_types - 1, f"bin_type[{k}]") for k in range(num_items)]
 
-    W_values = [W for W, _ in bin_types]
-    D_values = [D for _, D in bin_types]
+    W_values = [bt.W for bt in bin_types]
+    D_values = [bt.D for bt in bin_types]
+    max_weight_values = [bt.max_weight for bt in bin_types]
 
     W_of_bin = [model.new_int_var(min(W_values), max(W_values), f"W_of_bin[{k}]") for k in range(num_items)]
     D_of_bin = [model.new_int_var(min(D_values), max(D_values), f"D_of_bin[{k}]") for k in range(num_items)]
+    max_weight_of_bin = [model.new_int_var(min(max_weight_values), max(max_weight_values), f"max_weight_of_bin[{k}]") for k in range(num_items)]
 
     for k in range(num_items):
         model.add_element(bin_type[k], W_values, W_of_bin[k])
         model.add_element(bin_type[k], D_values, D_of_bin[k])
+        model.add_element(bin_type[k], max_weight_values, max_weight_of_bin[k])
 
     # Variant selection: for each item, choose one variant
     variant_of = []
@@ -59,6 +62,7 @@ def create_variables(model: cp_model.CpModel, items: list[Item], bin_types: list
         "D_of_bin": D_of_bin,
         "max_W": max_W,
         "max_D": max_D,
+        "max_weight_of_bin": max_weight_of_bin,
         "variant_of": variant_of,
         "eff_w": eff_w,
         "eff_d": eff_d,
@@ -213,6 +217,20 @@ def add_non_overlap_constraints(model: cp_model.CpModel, items: list[Item], vari
             model.add_implication(below_ji, same_bin)
 
 
+def add_weight_constraints(model: cp_model.CpModel, items: list[Item], is_in: dict, variables: dict):
+    num_items = len(items)
+    max_weight_of_bin = variables["max_weight_of_bin"]
+
+    for k in range(num_items):
+        weighted_items = [
+            items[i].weight * is_in[i, k]
+            for i in range(num_items)
+            if (i, k) in is_in
+        ]
+        if weighted_items:
+            model.add(sum(weighted_items) <= max_weight_of_bin[k])
+
+
 def build_objective(model: cp_model.CpModel, families, variables: dict, family_drawer_count: dict, xspan: dict, yspan: dict, config: SolverConfig):
     num_items = len(variables["bin_of"])
     num_bins = variables["num_bins"]
@@ -224,7 +242,7 @@ def build_objective(model: cp_model.CpModel, families, variables: dict, family_d
     )
 
 
-def build_model(items: list[Item], families, bin_types: list[tuple[int, int]], config: SolverConfig):
+def build_model(items: list[Item], families, bin_types: list[BinType], config: SolverConfig):
     model = cp_model.CpModel()
 
     variables = create_variables(model, items, bin_types, families)
@@ -233,6 +251,7 @@ def build_model(items: list[Item], families, bin_types: list[tuple[int, int]], c
     fam_in_bin, family_drawer_count = add_family_constraints(model, items, families, is_in, variables)
     xspan, yspan = add_spatial_span_constraints(model, items, families, is_in, fam_in_bin, variables)
     add_non_overlap_constraints(model, items, variables, config.separator)
+    add_weight_constraints(model, items, is_in, variables)
 
     build_objective(model, families, variables, family_drawer_count, xspan, yspan, config)
 

@@ -4,15 +4,25 @@ from dataclasses import dataclass, field
 class Variant:
     w: int
     d: int
+
+
+@dataclass(frozen=True)
+class BinType:
+    W: int
+    D: int
+    max_weight: int
+
 @dataclass(frozen=True)
 class Item:
     id: int
     family: int
+    weight: int
     variants: list[Variant]
 @dataclass
 class PlacedItem:
     item: int
     family: int
+    weight: int
     variant: int
     w: int
     d: int
