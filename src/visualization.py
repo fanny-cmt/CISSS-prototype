@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.cm as cm
 
-from src.model import Solution
+from src.types import Solution
 
 
 def plot_bins(solution: Solution) -> None:

@@ -1,4 +1,4 @@
-from src.model import Item, SolverConfig
+from src.types import Item, SolverConfig
 from src.solver import solve_2d_bins_fast
 from src.visualization import plot_bins
 
