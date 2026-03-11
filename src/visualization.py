@@ -83,7 +83,7 @@ def plot_bins(solution: Solution, cols: int = 4) -> None:
     plt.show()
 
 
-def plot_cabinets(solution: Solution, geometry: Geometry) -> None:
+def plot_cabinets(solution: Solution, geometry: Geometry, visible_families: list[int] | None = None) -> None:
     bins = solution.bins
 
     if not bins:
@@ -170,15 +170,56 @@ def plot_cabinets(solution: Solution, geometry: Geometry) -> None:
                     linewidth=1,
                 )
 
+            # Check if this bin contains a visible family
+            vis_fams = set()
+            if visible_families:
+                vis_fams = {item.family for item in b.items} & set(visible_families)
+
+            # Highlight bins with visible families
+            if vis_fams:
+                highlight = patches.Rectangle(
+                    (1, b.Z),
+                    drawer_width - 2,
+                    b.occupied_H,
+                    linewidth=3,
+                    edgecolor="darkorange",
+                    facecolor="none",
+                    linestyle="-",
+                )
+                ax.add_patch(highlight)
+
             # Label inside the bin
             label_y = b.Z + b.occupied_H / 2
+            label = f"Tiroir {b.bin_id} (type {b.type})\nH={b.H} occ={b.occupied_H}\nZ={b.Z}"
+            if vis_fams:
+                label += f"\nVIS F{','.join(str(f) for f in sorted(vis_fams))}"
             ax.text(
                 drawer_width / 2,
                 label_y,
-                f"Tiroir {b.bin_id} (type {b.type})\nH={b.H} occ={b.occupied_H}\nZ={b.Z}",
+                label,
                 ha="center",
                 va="center",
                 fontsize=8,
+                fontweight="bold",
+            )
+
+        # Eye-level indicator
+        if visible_families and geometry.eye_level <= cabinet_height:
+            ax.axhline(
+                y=geometry.eye_level,
+                color="darkorange",
+                linestyle="--",
+                linewidth=1.5,
+                alpha=0.8,
+            )
+            ax.text(
+                drawer_width + 3,
+                geometry.eye_level,
+                "eye",
+                ha="left",
+                va="center",
+                fontsize=7,
+                color="darkorange",
                 fontweight="bold",
             )
 

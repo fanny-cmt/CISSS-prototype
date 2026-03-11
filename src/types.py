@@ -64,6 +64,7 @@ class Geometry:
     cabinet_height: int
     separator: int
     drawer_gap: int
+    eye_level: int
 
 
 @dataclass
@@ -77,3 +78,4 @@ class SolverConfig:
     bin_weight: int = 100
     family_weight: int = 1000
     span_weight: int = 0
+    visibility_weight: int = 1

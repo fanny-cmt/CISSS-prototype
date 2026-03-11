@@ -94,6 +94,7 @@ def solve_2d_bins_fast(
     bin_types: list[BinType],
     geometry: Geometry,
     config: SolverConfig | None = None,
+    visible_families: list[int] | None = None,
 ) -> Solution:
     if config is None:
         config = SolverConfig()
@@ -107,7 +108,7 @@ def solve_2d_bins_fast(
     print(f"      Greedy bound: {max_bins} bins, {max_cabinets} cabinets (K={max_bins} candidate slots)")
 
     print("[3/6] Building model (variables, constraints, objective)...")
-    model, variables = build_model(sorted_items, families, bin_types, geometry, config, max_bins=max_bins, max_cabinets=max_cabinets)
+    model, variables = build_model(sorted_items, families, bin_types, geometry, config, visible_families=visible_families, max_bins=max_bins, max_cabinets=max_cabinets)
 
     print(f"[4/6] Solving (time_limit={config.time_limit}s, workers={config.num_workers})...")
     solver = cp_model.CpSolver()

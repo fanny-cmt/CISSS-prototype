@@ -13,9 +13,10 @@ if __name__ == "__main__":
         bin_types=instance["bin_types"],
         geometry=instance["geometry"],
         config=SolverConfig(),
+        visible_families=instance["visible_families"],
     )
 
     print(f"Bins: {result.num_bins}, Armoires: {result.num_cabinets}")
 
-    plot_cabinets(result, instance["geometry"])
+    plot_cabinets(result, instance["geometry"], visible_families=instance["visible_families"])
     plot_bins(result)

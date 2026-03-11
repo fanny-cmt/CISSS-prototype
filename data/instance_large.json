@@ -2,8 +2,10 @@
   "geometry": {
     "cabinet_height": 180,
     "separator": 1,
-    "drawer_gap": 3
+    "drawer_gap": 3,
+    "eye_level": 140
   },
+  "visible_families": [2, 3],
   "family_names": {
     "0": "Pansements",
     "1": "Gants",

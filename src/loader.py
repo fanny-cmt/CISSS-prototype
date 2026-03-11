@@ -28,7 +28,9 @@ def load_instance(path: str | Path) -> dict:
     families = sorted(family_names.keys())
 
     geo = data["geometry"]
-    geometry = Geometry(cabinet_height=geo["cabinet_height"], separator=geo["separator"], drawer_gap=geo["drawer_gap"])
+    geometry = Geometry(cabinet_height=geo["cabinet_height"], separator=geo["separator"], drawer_gap=geo["drawer_gap"], eye_level=geo["eye_level"])
+
+    visible_families = data.get("visible_families", [])
 
     return {
         "family_names": family_names,
@@ -36,4 +38,5 @@ def load_instance(path: str | Path) -> dict:
         "bin_types": bin_types,
         "items": items,
         "geometry": geometry,
+        "visible_families": visible_families,
     }

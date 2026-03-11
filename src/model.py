@@ -476,18 +476,74 @@ def add_cabinet_constraints(model: cp_model.CpModel, items: list[Item], variable
             model.add_implication(m_above_k, used_bin[m])
             model.add_implication(m_above_k, same_cabinet)
 
-def build_objective(model: cp_model.CpModel, families, variables: dict, family_drawer_count: dict, xspan: dict, yspan: dict, config: SolverConfig):
+def add_visibility_constraints(model: cp_model.CpModel, fam_in_bin: dict, variables: dict, geometry: Geometry, visible_families: list[int], config: SolverConfig):
+    """Create visibility deviation variables for visible families.
+
+    For each visible family f present in bin k, the deviation measures:
+      |center_of_bin_k - eye_level| (in doubled coordinates to stay integer)
+
+    where center_of_bin_k = 2 * Z_of_bin[k] + occupied_height_of_bin[k]
+    and target = 2 * eye_level.
+
+    Returns a dict {(f, k): deviation_var} for use in the objective.
+    """
+    if not visible_families:
+        return {}
+
+    max_bin_slots = variables["max_bin_slots"]
+    Z_of_bin = variables["Z_of_bin"]
+    occupied_height_of_bin = variables["occupied_height_of_bin"]
+    occ_h_ub = variables["occ_h_ub"]
+
+    target = 2 * geometry.eye_level
+    max_center = 2 * geometry.cabinet_height + occ_h_ub
+    max_dev = max(max_center, target)
+
+    visibility_deviation = {}
+    for f in visible_families:
+        for k in range(max_bin_slots):
+            if (f, k) not in fam_in_bin:
+                continue
+
+            # center = 2*Z + occ_h (integer, avoids division by 2)
+            center = model.new_int_var(0, max_center, f"vis_center[{f},{k}]")
+            model.add(center == 2 * Z_of_bin[k] + occupied_height_of_bin[k])
+
+            # diff = center - target (can be negative)
+            diff = model.new_int_var(-max_dev, max_dev, f"vis_diff[{f},{k}]")
+            model.add(diff == center - target)
+
+            # dev = |diff|, active only if family f is in bin k
+            dev = model.new_int_var(0, max_dev, f"vis_dev[{f},{k}]")
+            model.add_abs_equality(dev, diff)
+
+            # Conditional: deviation counts only if family is present in bin
+            cond_dev = model.new_int_var(0, max_dev, f"vis_cdev[{f},{k}]")
+            model.add(cond_dev == dev).only_enforce_if(fam_in_bin[f, k])
+            model.add(cond_dev == 0).only_enforce_if(fam_in_bin[f, k].Not())
+
+            visibility_deviation[f, k] = cond_dev
+
+    return visibility_deviation
+
+
+def build_objective(model: cp_model.CpModel, families, variables: dict, family_drawer_count: dict, xspan: dict, yspan: dict, visibility_deviation: dict, config: SolverConfig):
     max_bin_slots = variables["max_bin_slots"]
 
-    model.minimize(
+    obj = (
         config.cabinet_weight * sum(variables["used_cabinet"])
         + config.bin_weight * sum(variables["used_bin"])
         + config.family_weight * sum(family_drawer_count[f] for f in families)
-        + config.span_weight * sum(xspan[f, k] + yspan[f, k] for f in families for k in range(max_bin_slots)) # desactivé
+        + config.span_weight * sum(xspan[f, k] + yspan[f, k] for f in families for k in range(max_bin_slots))
     )
 
+    if visibility_deviation:
+        obj += config.visibility_weight * sum(visibility_deviation.values())
 
-def build_model(items: list[Item], families, bin_types: list[BinType], geometry: Geometry, config: SolverConfig, max_bins: int | None = None, max_cabinets: int | None = None):
+    model.minimize(obj)
+
+
+def build_model(items: list[Item], families, bin_types: list[BinType], geometry: Geometry, config: SolverConfig, visible_families: list[int] | None = None, max_bins: int | None = None, max_cabinets: int | None = None):
     model = cp_model.CpModel()
 
     variables = create_variables(model, items, bin_types, families, geometry, max_bins, max_cabinets)
@@ -500,7 +556,8 @@ def build_model(items: list[Item], families, bin_types: list[BinType], geometry:
     add_bin_height_constraints(model, items, is_in, variables)
     add_area_constraints(model, items, is_in, variables)
     add_cabinet_constraints(model, items, variables, geometry)
+    visibility_deviation = add_visibility_constraints(model, fam_in_bin, variables, geometry, visible_families or [], config)
 
-    build_objective(model, families, variables, family_drawer_count, xspan, yspan, config)
+    build_objective(model, families, variables, family_drawer_count, xspan, yspan, visibility_deviation, config)
 
     return model, variables
