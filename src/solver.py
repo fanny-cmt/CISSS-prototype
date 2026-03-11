@@ -114,6 +114,7 @@ def solve_2d_bins_fast(
     solver.parameters.max_time_in_seconds = config.time_limit
     solver.parameters.num_search_workers = config.num_workers
     solver.parameters.symmetry_level = config.symmetry_level
+    solver.log_search_progress = True
 
     callback = _ProgressCallback()
     status = solver.solve(model, callback)

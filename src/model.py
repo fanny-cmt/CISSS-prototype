@@ -24,16 +24,20 @@ def create_variables(model: cp_model.CpModel, items: list[Item], bin_types: list
     H_values = [bt.H for bt in bin_types]
     max_weight_values = [bt.max_weight for bt in bin_types]
 
+    area_values = [bt.W * bt.D for bt in bin_types]
+
     W_of_bin = [model.new_int_var(min(W_values), max(W_values), f"W_of_bin[{k}]") for k in range(max_bin_slots)]
     D_of_bin = [model.new_int_var(min(D_values), max(D_values), f"D_of_bin[{k}]") for k in range(max_bin_slots)]
     H_of_bin = [model.new_int_var(min(H_values), max(H_values), f"H_of_bin[{k}]") for k in range(max_bin_slots)]
     max_weight_of_bin = [model.new_int_var(min(max_weight_values), max(max_weight_values), f"max_weight_of_bin[{k}]") for k in range(max_bin_slots)]
+    area_of_bin = [model.new_int_var(min(area_values), max(area_values), f"area_of_bin[{k}]") for k in range(max_bin_slots)]
 
     for k in range(max_bin_slots):
         model.add_element(bin_type[k], W_values, W_of_bin[k])
         model.add_element(bin_type[k], D_values, D_of_bin[k])
         model.add_element(bin_type[k], H_values, H_of_bin[k])
         model.add_element(bin_type[k], max_weight_values, max_weight_of_bin[k])
+        model.add_element(bin_type[k], area_values, area_of_bin[k])
 
     # Variant selection
     variant_of = []
@@ -90,17 +94,20 @@ def create_variables(model: cp_model.CpModel, items: list[Item], bin_types: list
         "max_W": max_W,
         "max_D": max_D,
         "max_weight_of_bin": max_weight_of_bin,
+        "area_of_bin": area_of_bin,
         "variant_of": variant_of,
         "eff_w": eff_w,
         "eff_d": eff_d,
         "eff_h": eff_h,
         "H_of_bin": H_of_bin,
         "occupied_height_of_bin": occupied_height_of_bin,
+        "occ_h_ub": occ_h_ub,
         "used_bin": used_bin,
         "num_cabinets": num_cabinets,
         "cabinet_of_bin": cabinet_of_bin,
         "Z_of_bin": Z_of_bin,
         "used_cabinet": used_cabinet,
+        "min_bin_height": min(H_values),
     }
 
 
@@ -272,34 +279,82 @@ def add_bin_height_constraints(model: cp_model.CpModel, items: list[Item], is_in
     max_bin_slots = variables["max_bin_slots"]
     eff_h = variables["eff_h"]
     H_of_bin = variables["H_of_bin"]
+    bin_type = variables["bin_type"]
     occupied_height_of_bin = variables["occupied_height_of_bin"]
     used_bin = variables["used_bin"]
+    num_bins = variables["num_bins"]
+    max_h_ub = variables["occ_h_ub"]
 
-    # Each item can exceed the bin height by up to 30%: eff_h[i] <= 1.3 * H_of_bin[k]
-    # Integer formulation: 10 * eff_h[i] <= 13 * H_of_bin[k]
+    # 1) Height tolerance: item may exceed bin height by up to 30%
+    #    Integer formulation: 10 * eff_h[i] <= 13 * H_of_bin[k]
     for i in range(num_items):
         for k in range(min(i + 1, max_bin_slots)):
             if (i, k) in is_in:
                 model.add(10 * eff_h[i] <= 13 * H_of_bin[k]).only_enforce_if(is_in[i, k])
 
-    # occupied_height_of_bin[k] >= H_of_bin[k] (at least the nominal height)
-    for k in range(max_bin_slots):
-        model.add(occupied_height_of_bin[k] >= H_of_bin[k]).only_enforce_if(used_bin[k])
-        model.add(occupied_height_of_bin[k] == 0).only_enforce_if(used_bin[k].Not())
-
-    # occupied_height_of_bin[k] >= eff_h[i] for every item i in bin k
-    for i in range(num_items):
-        for k in range(min(i + 1, max_bin_slots)):
-            if (i, k) in is_in:
-                model.add(occupied_height_of_bin[k] >= eff_h[i]).only_enforce_if(is_in[i, k])
-
-    # used_bin[k] == 1 iff at least one item is in bin k
+    # 2) used_bin[k] == 1 iff at least one item is in bin k
     for k in range(max_bin_slots):
         items_in_k = [is_in[i, k] for i in range(num_items) if (i, k) in is_in]
         if items_in_k:
             model.add_max_equality(used_bin[k], items_in_k)
         else:
             model.add(used_bin[k] == 0)
+
+    # 3) Bin compaction: used bins form a contiguous prefix
+    for k in range(max_bin_slots - 1):
+        model.add(used_bin[k] >= used_bin[k + 1])
+
+    # 4) num_bins is the exact count of used bins
+    model.add(num_bins == sum(used_bin))
+
+    # 5) Fix unused bin variables to reduce symmetry
+    for k in range(max_bin_slots):
+        model.add(bin_type[k] == 0).only_enforce_if(used_bin[k].Not())
+
+    # 6) Exact occupied_height_of_bin via add_max_equality
+    for k in range(max_bin_slots):
+        # Nominal height: H_of_bin[k] if used, 0 otherwise
+        h_nominal = model.new_int_var(0, max_h_ub, f"h_nominal[{k}]")
+        model.add(h_nominal == H_of_bin[k]).only_enforce_if(used_bin[k])
+        model.add(h_nominal == 0).only_enforce_if(used_bin[k].Not())
+
+        # Per-item contributions: eff_h[i] if in bin k, 0 otherwise
+        max_args = [h_nominal]
+        for i in range(num_items):
+            if (i, k) in is_in:
+                h_contrib = model.new_int_var(0, max_h_ub, f"h_contrib[{i},{k}]")
+                model.add(h_contrib == eff_h[i]).only_enforce_if(is_in[i, k])
+                model.add(h_contrib == 0).only_enforce_if(is_in[i, k].Not())
+                max_args.append(h_contrib)
+
+        model.add_max_equality(occupied_height_of_bin[k], max_args)
+
+
+def add_area_constraints(model: cp_model.CpModel, items: list[Item], is_in: dict, variables: dict):
+    max_bin_slots = variables["max_bin_slots"]
+    area_of_bin = variables["area_of_bin"]
+
+    # item_area[i] linked to variant_of[i] via add_element
+    item_area = []
+    for i, item in enumerate(items):
+        area_values_i = [v.w * v.d for v in item.variants]
+        area_i = model.new_int_var(min(area_values_i), max(area_values_i), f"item_area[{i}]")
+        model.add_element(variables["variant_of"][i], area_values_i, area_i)
+        item_area.append(area_i)
+
+    # Sum of item areas in each bin must not exceed the bin's area
+    for k in range(max_bin_slots):
+        area_terms = []
+        for i in range(len(items)):
+            if (i, k) in is_in:
+                # area_i * is_in[i,k]: use intermediate variable
+                contrib = model.new_int_var(0, max(v.w * v.d for v in items[i].variants), f"area_contrib[{i},{k}]")
+                model.add(contrib == item_area[i]).only_enforce_if(is_in[i, k])
+                model.add(contrib == 0).only_enforce_if(is_in[i, k].Not())
+                area_terms.append(contrib)
+        if area_terms:
+            model.add(sum(area_terms) <= area_of_bin[k])
+
 
 def add_cabinet_constraints(model: cp_model.CpModel, items: list[Item], variables: dict, geometry: Geometry):
     max_bin_slots = variables["max_bin_slots"]
@@ -325,28 +380,42 @@ def add_cabinet_constraints(model: cp_model.CpModel, items: list[Item], variable
 
     # Each used bin must fit inside cabinet height
     for k in range(max_bin_slots):
-        model.add(Z_of_bin[k] + occupied_height_of_bin[k] <= cabinet_height).only_enforce_if(used_bin[k])
+        model.add(
+            Z_of_bin[k] + occupied_height_of_bin[k] <= cabinet_height
+        ).only_enforce_if(used_bin[k])
 
     # bin_in_cabinet[k, c] means: bin k is used and assigned to cabinet c
     bin_in_cabinet = {}
     for k in range(max_bin_slots):
+        cabinet_choices_k = []
+
         for c in range(min(k + 1, max_cabinet_slots)):
             b = model.new_bool_var(f"bin_in_cabinet[{k},{c}]")
             bin_in_cabinet[k, c] = b
+            cabinet_choices_k.append(b)
 
-            # If b is true, bin k is used and cabinet_of_bin[k] == c
+            # b => used_bin[k] and cabinet_of_bin[k] == c
             model.add(cabinet_of_bin[k] == c).only_enforce_if(b)
-            model.add_implication(b, used_bin[k])
+            model.add(used_bin[k] == 1).only_enforce_if(b)
 
-            # If bin k is used and cabinet_of_bin[k] == c, then b must be true
+            # If used_bin[k] and b is false, then cabinet_of_bin[k] != c
             model.add(cabinet_of_bin[k] != c).only_enforce_if([used_bin[k], b.Not()])
 
-            # A used bin in cabinet c implies cabinet c is used
+            # A bin assigned to cabinet c implies cabinet c is used
             model.add_implication(b, used_cabinet[c])
 
-    # used_cabinet[c] = OR of all bin_in_cabinet[k,c]
+        # Exact assignment:
+        # - if bin k is unused, no cabinet is selected
+        # - if bin k is used, exactly one cabinet is selected
+        model.add(sum(cabinet_choices_k) == used_bin[k])
+
+    # used_cabinet[c] = OR of all bin_in_cabinet[k, c]
     for c in range(max_cabinet_slots):
-        bins_in_c = [bin_in_cabinet[k, c] for k in range(max_bin_slots) if (k, c) in bin_in_cabinet]
+        bins_in_c = [
+            bin_in_cabinet[k, c]
+            for k in range(max_bin_slots)
+            if (k, c) in bin_in_cabinet
+        ]
         if bins_in_c:
             model.add_max_equality(used_cabinet[c], bins_in_c)
         else:
@@ -358,6 +427,20 @@ def add_cabinet_constraints(model: cp_model.CpModel, items: list[Item], variable
 
     # Exact count of used cabinets
     model.add(num_cabinets == sum(used_cabinet))
+
+    # Global valid inequality on total stacked height
+    model.add(
+        sum(occupied_height_of_bin[k] for k in range(max_bin_slots))
+        + drawer_gap * (sum(used_bin) - num_cabinets)
+        <= cabinet_height * num_cabinets
+    )
+
+    # Lower bound on num_cabinets from bin count and minimum bin height
+    min_bin_height = variables["min_bin_height"]
+    model.add(
+        (cabinet_height + drawer_gap) * num_cabinets
+        >= (min_bin_height + drawer_gap) * sum(used_bin)
+    )
 
     # Non-overlap on Z axis for bins in the same cabinet
     for k in range(max_bin_slots):
@@ -393,17 +476,14 @@ def add_cabinet_constraints(model: cp_model.CpModel, items: list[Item], variable
             model.add_implication(m_above_k, used_bin[m])
             model.add_implication(m_above_k, same_cabinet)
 
-
 def build_objective(model: cp_model.CpModel, families, variables: dict, family_drawer_count: dict, xspan: dict, yspan: dict, config: SolverConfig):
     max_bin_slots = variables["max_bin_slots"]
-    num_bins = variables["num_bins"]
-    num_cabinets = variables["num_cabinets"]
 
     model.minimize(
-        config.cabinet_weight * num_cabinets
-        + config.bin_weight * num_bins
+        config.cabinet_weight * sum(variables["used_cabinet"])
+        + config.bin_weight * sum(variables["used_bin"])
         + config.family_weight * sum(family_drawer_count[f] for f in families)
-        + config.span_weight * sum(xspan[f, k] + yspan[f, k] for f in families for k in range(max_bin_slots))
+        + config.span_weight * sum(xspan[f, k] + yspan[f, k] for f in families for k in range(max_bin_slots)) # desactivé
     )
 
 
@@ -418,6 +498,7 @@ def build_model(items: list[Item], families, bin_types: list[BinType], geometry:
     add_non_overlap_constraints(model, items, variables, geometry.separator)
     add_weight_constraints(model, items, is_in, variables)
     add_bin_height_constraints(model, items, is_in, variables)
+    add_area_constraints(model, items, is_in, variables)
     add_cabinet_constraints(model, items, variables, geometry)
 
     build_objective(model, families, variables, family_drawer_count, xspan, yspan, config)

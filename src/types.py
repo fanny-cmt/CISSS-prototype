@@ -68,12 +68,12 @@ class Geometry:
 
 @dataclass
 class SolverConfig:
-    time_limit: int = 240
+    time_limit: int = 60
     num_workers: int = 8
     symmetry_level: int = 2
 
     # Objective weights
     cabinet_weight: int = 100000
-    bin_weight: int = 1000
-    family_weight: int = 10
-    span_weight: int = 1
+    bin_weight: int = 100
+    family_weight: int = 1000
+    span_weight: int = 0

@@ -94,69 +94,82 @@ def compute_greedy_max_bins(
     geometry: Geometry,
 ) -> tuple[int, int]:
     """
-    Greedy shelf-based 2D packing to compute upper bounds.
+    Conservative greedy heuristic: one family per bin.
 
     Returns (max_bins, max_cabinets).
 
     Strategy:
-    - Sort items by family then decreasing max variant area.
-    - For each item, try to place it in an existing open bin (first fit).
-    - If no bin works, open a new bin with the smallest compatible bin type.
-    - Bin types are tried from smallest H to largest.
+    - Group items by family.
+    - For each family, pack its items (sorted by decreasing area) into
+      dedicated bins using shelf-based 2D placement.
+    - A family may use multiple bins if items don't fit in one.
+    - Families never share bins — this is intentionally conservative
+      to guarantee a safe upper bound.
+    - Bin types are tried from largest H to smallest (conservative).
     - Cabinets are estimated by greedily stacking bin occupied heights.
     """
-    # Sort bin types by H (smallest first)
-    sorted_bt = sorted(bin_types, key=lambda bt: bt.H)
+    # Sort bin types by H descending (largest first = most conservative)
+    sorted_bt = sorted(bin_types, key=lambda bt: bt.H, reverse=True)
 
-    # Sort items: by family, then decreasing max variant area
-    sorted_items = sorted(
-        items,
-        key=lambda it: (it.family, -max(v.w * v.d for v in it.variants)),
-    )
+    # Group items by family
+    families: dict[int, list[Item]] = {}
+    for item in items:
+        families.setdefault(item.family, []).append(item)
 
     open_bins: list[_OpenBin] = []
 
-    for item in sorted_items:
-        placed = False
+    for fam_id in sorted(families):
+        # Sort family items by decreasing max variant area
+        fam_items = sorted(
+            families[fam_id],
+            key=lambda it: -max(v.w * v.d for v in it.variants),
+        )
 
-        # Try existing bins (first fit)
-        for obin in open_bins:
-            variant = _best_variant_for_bin(item, obin.bt)
-            if variant is None:
-                continue
-            w, d, h = variant
-            if obin.try_place(w, d, h, item.weight):
-                placed = True
-                break
+        # Bins dedicated to this family
+        fam_bins: list[_OpenBin] = []
 
-        if not placed:
-            # Open a new bin — try smallest compatible bin type first
-            for bt in sorted_bt:
-                variant = _best_variant_for_bin(item, bt)
+        for item in fam_items:
+            placed = False
+
+            # Try existing bins for this family only
+            for obin in fam_bins:
+                variant = _best_variant_for_bin(item, obin.bt)
                 if variant is None:
                     continue
-                new_bin = _OpenBin(bt)
                 w, d, h = variant
-                if new_bin.try_place(w, d, h, item.weight):
-                    open_bins.append(new_bin)
+                if obin.try_place(w, d, h, item.weight):
                     placed = True
                     break
 
             if not placed:
-                # Fallback: open a bin with the largest type
-                bt = sorted_bt[-1]
-                new_bin = _OpenBin(bt)
-                # Force place with any fitting variant
-                for v in item.variants:
-                    if v.w <= bt.W and v.d <= bt.D:
-                        new_bin.try_place(v.w, v.d, v.h, item.weight)
+                # Open a new bin — try largest compatible bin type first
+                for bt in sorted_bt:
+                    variant = _best_variant_for_bin(item, bt)
+                    if variant is None:
+                        continue
+                    new_bin = _OpenBin(bt)
+                    w, d, h = variant
+                    if new_bin.try_place(w, d, h, item.weight):
+                        fam_bins.append(new_bin)
                         placed = True
                         break
-                if placed:
-                    open_bins.append(new_bin)
-                else:
-                    # Item cannot fit at all — still count a bin for safety
-                    open_bins.append(_OpenBin(sorted_bt[-1]))
+
+                if not placed:
+                    # Fallback: open a bin with the largest type
+                    bt = sorted_bt[0]
+                    new_bin = _OpenBin(bt)
+                    for v in item.variants:
+                        if v.w <= bt.W and v.d <= bt.D:
+                            new_bin.try_place(v.w, v.d, v.h, item.weight)
+                            placed = True
+                            break
+                    if placed:
+                        fam_bins.append(new_bin)
+                    else:
+                        # Item cannot fit at all — still count a bin for safety
+                        fam_bins.append(_OpenBin(sorted_bt[0]))
+
+        open_bins.extend(fam_bins)
 
     max_bins = len(open_bins)
 
@@ -187,8 +200,7 @@ def _greedy_cabinet_count(open_bins: list[_OpenBin], geometry: Geometry) -> int:
     for h in heights:
         placed = False
         for i, remaining in enumerate(cabinets):
-            needed = h + drawer_gap if remaining < cabinet_height else h
-            if h <= remaining:
+            if h + drawer_gap <= remaining:
                 cabinets[i] = remaining - h - drawer_gap
                 placed = True
                 break
