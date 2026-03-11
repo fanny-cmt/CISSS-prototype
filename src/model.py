@@ -71,7 +71,7 @@ def create_variables(model: cp_model.CpModel, items: list[Item], bin_types: list
 
     # Cabinet variables
     max_num_cabinets = num_items  # upper bound
-    num_cabinets = model.new_int_var(1, max_num_cabinets, "num_cabinets")
+    num_cabinets = model.new_int_var(0, max_num_cabinets, "num_cabinets")
     cabinet_of_bin = [model.new_int_var(0, max_num_cabinets - 1, f"cabinet_of_bin[{k}]") for k in range(num_items)]
     Z_of_bin = [model.new_int_var(0, geometry.cabinet_height, f"Z_of_bin[{k}]") for k in range(num_items)]
     used_cabinet = [model.new_bool_var(f"used_cabinet[{c}]") for c in range(num_items)]
@@ -296,7 +296,6 @@ def add_bin_height_constraints(model: cp_model.CpModel, items: list[Item], is_in
         else:
             model.add(used_bin[k] == 0)
 
-
 def add_cabinet_constraints(model: cp_model.CpModel, items: list[Item], variables: dict, geometry: Geometry):
     num_items = len(items)
     used_bin = variables["used_bin"]
@@ -308,31 +307,38 @@ def add_cabinet_constraints(model: cp_model.CpModel, items: list[Item], variable
     cabinet_height = geometry.cabinet_height
     drawer_gap = geometry.drawer_gap
 
-    # --- Step 1: Symmetry breaking — bin k can only use cabinets 0..k ---
+    # Symmetry breaking: bin k can only use cabinets 0..k
     for k in range(num_items):
         model.add(cabinet_of_bin[k] <= k)
 
-    # Unused bins: z=0, cabinet=0 (no impact)
+    # Link used bins to valid cabinet indices
     for k in range(num_items):
+        model.add(cabinet_of_bin[k] < num_cabinets).only_enforce_if(used_bin[k])
         model.add(cabinet_of_bin[k] == 0).only_enforce_if(used_bin[k].Not())
         model.add(Z_of_bin[k] == 0).only_enforce_if(used_bin[k].Not())
 
-    # Each used bin must fit within the cabinet height (using occupied height)
+    # Each used bin must fit inside cabinet height
     for k in range(num_items):
         model.add(Z_of_bin[k] + occupied_height_of_bin[k] <= cabinet_height).only_enforce_if(used_bin[k])
 
-    # --- Step 3: Link bins to cabinet usage ---
+    # bin_in_cabinet[k, c] means: bin k is used and assigned to cabinet c
     bin_in_cabinet = {}
     for k in range(num_items):
-        for c in range(k + 1):  # bin k can only be in cabinets 0..k
-            bin_in_cabinet[k, c] = model.new_bool_var(f"bin_in_cabinet[{k},{c}]")
-            model.add(cabinet_of_bin[k] == c).only_enforce_if(bin_in_cabinet[k, c])
-            model.add(cabinet_of_bin[k] != c).only_enforce_if(bin_in_cabinet[k, c].Not())
+        for c in range(k + 1):
+            b = model.new_bool_var(f"bin_in_cabinet[{k},{c}]")
+            bin_in_cabinet[k, c] = b
 
-            # If bin k is used and in cabinet c, then cabinet c is used
-            model.add_implication(bin_in_cabinet[k, c], used_cabinet[c])
+            # If b is true, bin k is used and cabinet_of_bin[k] == c
+            model.add(cabinet_of_bin[k] == c).only_enforce_if(b)
+            model.add_implication(b, used_bin[k])
 
-    # used_cabinet[c] = max over all bins that could be in cabinet c
+            # If bin k is used and cabinet_of_bin[k] == c, then b must be true
+            model.add(cabinet_of_bin[k] != c).only_enforce_if([used_bin[k], b.Not()])
+
+            # A used bin in cabinet c implies cabinet c is used
+            model.add_implication(b, used_cabinet[c])
+
+    # used_cabinet[c] = OR of all bin_in_cabinet[k,c]
     for c in range(num_items):
         bins_in_c = [bin_in_cabinet[k, c] for k in range(num_items) if (k, c) in bin_in_cabinet]
         if bins_in_c:
@@ -340,35 +346,46 @@ def add_cabinet_constraints(model: cp_model.CpModel, items: list[Item], variable
         else:
             model.add(used_cabinet[c] == 0)
 
-    # --- Step 4: Contiguous cabinet usage ---
+    # Cabinets must be used contiguously: 0,1,2,...
     for c in range(num_items - 1):
         model.add(used_cabinet[c] >= used_cabinet[c + 1])
 
-    # --- Step 5: num_cabinets == sum(used_cabinet) ---
+    # Exact count of used cabinets
     model.add(num_cabinets == sum(used_cabinet))
 
-    # --- Non-overlapping on Z axis for bins in the same cabinet (with drawer gap) ---
+    # Non-overlap on Z axis for bins in the same cabinet
     for k in range(num_items):
         for m in range(k + 1, num_items):
             same_cabinet = model.new_bool_var(f"same_cabinet[{k},{m}]")
             model.add(cabinet_of_bin[k] == cabinet_of_bin[m]).only_enforce_if(same_cabinet)
             model.add(cabinet_of_bin[k] != cabinet_of_bin[m]).only_enforce_if(same_cabinet.Not())
 
-            # Both must be used and in the same cabinet to need separation
-            both_used_same = model.new_bool_var(f"both_used_same[{k},{m}]")
-            model.add_bool_and([used_bin[k], used_bin[m], same_cabinet]).only_enforce_if(both_used_same)
-            model.add_bool_or([used_bin[k].Not(), used_bin[m].Not(), same_cabinet.Not()]).only_enforce_if(both_used_same.Not())
-
             k_above_m = model.new_bool_var(f"k_above_m[{k},{m}]")
             m_above_k = model.new_bool_var(f"m_above_k[{k},{m}]")
 
-            model.add(Z_of_bin[m] + occupied_height_of_bin[m] + drawer_gap <= Z_of_bin[k]).only_enforce_if(k_above_m)
-            model.add(Z_of_bin[k] + occupied_height_of_bin[k] + drawer_gap <= Z_of_bin[m]).only_enforce_if(m_above_k)
+            model.add(
+                Z_of_bin[m] + occupied_height_of_bin[m] + drawer_gap <= Z_of_bin[k]
+            ).only_enforce_if(k_above_m)
+            model.add(
+                Z_of_bin[k] + occupied_height_of_bin[k] + drawer_gap <= Z_of_bin[m]
+            ).only_enforce_if(m_above_k)
 
-            model.add_bool_or([k_above_m, m_above_k, both_used_same.Not()])
+            # If two used bins are in the same cabinet, one must be above the other
+            model.add_bool_or([
+                k_above_m,
+                m_above_k,
+                used_bin[k].Not(),
+                used_bin[m].Not(),
+                same_cabinet.Not(),
+            ])
 
-            model.add_implication(k_above_m, both_used_same)
-            model.add_implication(m_above_k, both_used_same)
+            model.add_implication(k_above_m, used_bin[k])
+            model.add_implication(k_above_m, used_bin[m])
+            model.add_implication(k_above_m, same_cabinet)
+
+            model.add_implication(m_above_k, used_bin[k])
+            model.add_implication(m_above_k, used_bin[m])
+            model.add_implication(m_above_k, same_cabinet)
 
 
 def build_objective(model: cp_model.CpModel, families, variables: dict, family_drawer_count: dict, xspan: dict, yspan: dict, config: SolverConfig):
