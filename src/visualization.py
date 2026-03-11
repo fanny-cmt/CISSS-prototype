@@ -6,7 +6,7 @@ from collections import defaultdict
 from src.types import Geometry, Solution
 
 
-def plot_bins(solution: Solution) -> None:
+def plot_bins(solution: Solution, cols: int = 4) -> None:
     bins = solution.bins
 
     if not bins:
@@ -14,11 +14,14 @@ def plot_bins(solution: Solution) -> None:
         return
 
     nb = len(bins)
+    rows = (nb + cols - 1) // cols
 
-    fig, axes = plt.subplots(1, nb, figsize=(6 * nb, 6))
+    fig, axes = plt.subplots(rows, cols, figsize=(5 * cols, 5 * rows))
+    axes = [axes] if nb == 1 else axes.flatten().tolist()
 
-    if nb == 1:
-        axes = [axes]
+    # Hide unused subplots
+    for ax in axes[nb:]:
+        ax.set_visible(False)
 
     # Collect all family IDs and assign colors dynamically
     all_families = sorted({item.family for b in bins for item in b.items})

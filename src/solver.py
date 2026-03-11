@@ -4,6 +4,7 @@ from ortools.sat.python import cp_model
 
 from src.types import Item, BinType, Geometry, PlacedItem, BinSolution, Solution, SolverConfig
 from src.model import build_model
+from src.heuristic import compute_greedy_max_bins
 
 
 class _ProgressCallback(cp_model.CpSolverSolutionCallback):
@@ -97,14 +98,18 @@ def solve_2d_bins_fast(
     if config is None:
         config = SolverConfig()
 
-    print(f"[1/5] Preprocessing {len(items)} items...")
+    print(f"[1/6] Preprocessing {len(items)} items...")
     original_ids, sorted_items = _preprocess_items(items)
     _validate_items(sorted_items, bin_types)
 
-    print("[2/5] Building model (variables, constraints, objective)...")
-    model, variables = build_model(sorted_items, families, bin_types, geometry, config)
+    print("[2/6] Computing greedy upper bound...")
+    max_bins, max_cabinets = compute_greedy_max_bins(sorted_items, bin_types, geometry)
+    print(f"      Greedy bound: {max_bins} bins, {max_cabinets} cabinets (K={max_bins} candidate slots)")
 
-    print(f"[3/5] Solving (time_limit={config.time_limit}s, workers={config.num_workers})...")
+    print("[3/6] Building model (variables, constraints, objective)...")
+    model, variables = build_model(sorted_items, families, bin_types, geometry, config, max_bins=max_bins, max_cabinets=max_cabinets)
+
+    print(f"[4/6] Solving (time_limit={config.time_limit}s, workers={config.num_workers})...")
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = config.time_limit
     solver.parameters.num_search_workers = config.num_workers
@@ -117,7 +122,7 @@ def solve_2d_bins_fast(
         print(f"No solution found (status: {solver.status_name(status)})")
         return Solution(status=solver.status_name(status), objective=None, num_bins=None, num_cabinets=None, bins=[])
 
-    print(f"[4/5] Extracting solution (status: {solver.status_name(status)})...")
+    print(f"[5/6] Extracting solution (status: {solver.status_name(status)})...")
     bins = _extract_solution(solver, sorted_items, original_ids, variables)
 
     num_bins = solver.value(variables["num_bins"])
@@ -126,7 +131,7 @@ def solve_2d_bins_fast(
     obj = solver.objective_value
     bound = solver.best_objective_bound
     gap = abs(obj - bound) / max(abs(obj), 1e-9) * 100
-    print(f"[5/5] Done! {num_bins} bins, {num_cabinets} cabinets.")
+    print(f"[6/6] Done! {num_bins} bins, {num_cabinets} cabinets.")
     print(f"      Objective: {obj:.0f} | Bound: {bound:.0f} | Gap: {gap:.2f}%")
     return Solution(
         status=solver.status_name(status),
