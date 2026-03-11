@@ -83,6 +83,7 @@ def _extract_solution(solver: cp_model.CpSolver, items: list[Item], original_ids
             h=solver.value(eff_h[i]),
             x=solver.value(x[i]),
             y=solver.value(y[i]),
+            heavy=item.heavy,
         ))
 
     return [bins[k] for k in sorted(bins)]

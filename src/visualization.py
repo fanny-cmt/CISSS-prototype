@@ -188,11 +188,29 @@ def plot_cabinets(solution: Solution, geometry: Geometry, visible_families: list
                 )
                 ax.add_patch(highlight)
 
+            # Check if this bin contains heavy items
+            has_heavy = any(item.heavy for item in b.items)
+
+            if has_heavy:
+                highlight_heavy = patches.Rectangle(
+                    (0, b.Z),
+                    drawer_width,
+                    b.H,
+                    linewidth=3,
+                    edgecolor="red",
+                    facecolor="none",
+                    linestyle="--",
+                )
+                ax.add_patch(highlight_heavy)
+
             # Label inside the bin
             label_y = b.Z + b.occupied_H / 2
             label = f"Tiroir {b.bin_id} (type {b.type})\nH={b.H} occ={b.occupied_H}\nZ={b.Z}"
             if vis_fams:
                 label += f"\nVIS F{','.join(str(f) for f in sorted(vis_fams))}"
+            if has_heavy:
+                heavy_ids = [str(item.item) for item in b.items if item.heavy]
+                label += f"\nHEAVY [{','.join(heavy_ids)}]"
             ax.text(
                 drawer_width / 2,
                 label_y,

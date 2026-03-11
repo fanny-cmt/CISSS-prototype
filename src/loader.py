@@ -21,6 +21,7 @@ def load_instance(path: str | Path) -> dict:
             family=it["family"],
             weight=it["weight"],
             variants=[Variant(w=v["w"], d=v["d"], h=v["h"]) for v in it["variants"]],
+            heavy=it["heavy"],
         )
         for it in data["items"]
     ]

@@ -22,6 +22,7 @@ class Item:
     family: int
     weight: int
     variants: list[Variant]
+    heavy: bool = False
 
 
 @dataclass
@@ -35,6 +36,7 @@ class PlacedItem:
     h: int
     x: int
     y: int
+    heavy: bool = False
 
 
 @dataclass
@@ -79,3 +81,4 @@ class SolverConfig:
     family_weight: int = 1000
     span_weight: int = 0
     visibility_weight: int = 1
+    heavy_weight: int = 1

@@ -476,6 +476,30 @@ def add_cabinet_constraints(model: cp_model.CpModel, items: list[Item], variable
             model.add_implication(m_above_k, used_bin[m])
             model.add_implication(m_above_k, same_cabinet)
 
+def add_heavy_item_constraints(model: cp_model.CpModel, items: list[Item], variables: dict, geometry: Geometry):
+    """Create Z-height variables for heavy items.
+
+    For each heavy item i, links heavy_z[i] to Z_of_bin[bin_of[i]]
+    via add_element on the Z_of_bin array.
+
+    Returns a list of heavy_z variables for use in the objective.
+    """
+    heavy_indices = [i for i, item in enumerate(items) if item.heavy]
+    if not heavy_indices:
+        return []
+
+    bin_of = variables["bin_of"]
+    Z_of_bin = variables["Z_of_bin"]
+
+    heavy_z = []
+    for i in heavy_indices:
+        z_i = model.new_int_var(0, geometry.cabinet_height, f"heavy_z[{i}]")
+        model.add_element(bin_of[i], Z_of_bin, z_i)
+        heavy_z.append(z_i)
+
+    return heavy_z
+
+
 def add_visibility_constraints(model: cp_model.CpModel, fam_in_bin: dict, variables: dict, geometry: Geometry, visible_families: list[int], config: SolverConfig):
     """Create visibility deviation variables for visible families.
 
@@ -527,7 +551,7 @@ def add_visibility_constraints(model: cp_model.CpModel, fam_in_bin: dict, variab
     return visibility_deviation
 
 
-def build_objective(model: cp_model.CpModel, families, variables: dict, family_drawer_count: dict, xspan: dict, yspan: dict, visibility_deviation: dict, config: SolverConfig):
+def build_objective(model: cp_model.CpModel, families, variables: dict, family_drawer_count: dict, xspan: dict, yspan: dict, visibility_deviation: dict, heavy_z: list, config: SolverConfig):
     max_bin_slots = variables["max_bin_slots"]
 
     obj = (
@@ -539,6 +563,9 @@ def build_objective(model: cp_model.CpModel, families, variables: dict, family_d
 
     if visibility_deviation:
         obj += config.visibility_weight * sum(visibility_deviation.values())
+
+    if heavy_z:
+        obj += config.heavy_weight * sum(heavy_z)
 
     model.minimize(obj)
 
@@ -557,7 +584,8 @@ def build_model(items: list[Item], families, bin_types: list[BinType], geometry:
     add_area_constraints(model, items, is_in, variables)
     add_cabinet_constraints(model, items, variables, geometry)
     visibility_deviation = add_visibility_constraints(model, fam_in_bin, variables, geometry, visible_families or [], config)
+    heavy_z = add_heavy_item_constraints(model, items, variables, geometry)
 
-    build_objective(model, families, variables, family_drawer_count, xspan, yspan, visibility_deviation, config)
+    build_objective(model, families, variables, family_drawer_count, xspan, yspan, visibility_deviation, heavy_z, config)
 
     return model, variables
