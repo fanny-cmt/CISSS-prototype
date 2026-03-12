@@ -5,7 +5,7 @@ from src.visualization import plot_bins, plot_cabinets
 
 
 if __name__ == "__main__":
-    instance = load_instance("data/instance.json")
+    instance = load_instance("data/instance_large.json")
 
     result = solve_2d_bins_fast(
         items=instance["items"],
