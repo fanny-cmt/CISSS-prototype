@@ -195,7 +195,7 @@ def plot_cabinets(solution: Solution, geometry: Geometry, visible_families: list
                 highlight_heavy = patches.Rectangle(
                     (0, b.Z),
                     drawer_width,
-                    b.H,
+                    max(b.H, b.occupied_H),
                     linewidth=3,
                     edgecolor="red",
                     facecolor="none",
