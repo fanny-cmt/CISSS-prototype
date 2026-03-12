@@ -397,11 +397,6 @@ def add_cabinet_constraints(model: cp_model.CpModel, items: list[Item], variable
             model.add(cabinet_of_bin[k] == c).only_enforce_if(b)
             model.add(used_bin[k] == 1).only_enforce_if(b)
 
-            # If used_bin[k] and b is false, then cabinet_of_bin[k] != c
-            model.add(cabinet_of_bin[k] != c).only_enforce_if([used_bin[k], b.Not()])
-
-            # A bin assigned to cabinet c implies cabinet c is used
-            model.add_implication(b, used_cabinet[c])
 
         # Exact assignment:
         # - if bin k is unused, no cabinet is selected
