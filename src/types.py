@@ -76,9 +76,11 @@ class SolverConfig:
     symmetry_level: int = 2
 
     # Objective weights
-    cabinet_weight: int = 100000
-    bin_weight: int = 100
-    family_weight: int = 1000
+    cabinet_weight: int = 1000000
+    bin_weight: int = 10000
+    family_weight: int = 6000
     span_weight: int = 0
-    visibility_weight: int = 1
-    heavy_weight: int = 1
+    visibility_weight: int = 100
+    heavy_weight: int = 100
+    family_cabinet_span_weight: int = 1
+    family_height_span_weight: int = 1

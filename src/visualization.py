@@ -105,6 +105,11 @@ def plot_cabinets(solution: Solution, geometry: Geometry, visible_families: list
     type_cmap = cm.get_cmap("Set2", max(len(all_types), 1))
     type_colors = {t: type_cmap(i) for i, t in enumerate(all_types)}
 
+    # Family colors (same colormap as plot_bins for consistency)
+    all_families = sorted({item.family for b in bins for item in b.items})
+    family_cmap = cm.get_cmap("tab10", max(len(all_families), 1))
+    family_colors = {f: family_cmap(i) for i, f in enumerate(all_families)}
+
     fig, axes = plt.subplots(1, num_cabinets, figsize=(5 * num_cabinets, 8))
 
     if num_cabinets == 1:
@@ -221,6 +226,20 @@ def plot_cabinets(solution: Solution, geometry: Geometry, visible_families: list
                 fontweight="bold",
             )
 
+            # Family color squares on the left side of the bin
+            bin_families = sorted({item.family for item in b.items})
+            sq_size = 3
+            for idx, fam in enumerate(bin_families):
+                sq = patches.Rectangle(
+                    (2 + idx * (sq_size + 1), b.Z + 1),
+                    sq_size,
+                    sq_size,
+                    linewidth=0.5,
+                    edgecolor="black",
+                    facecolor=family_colors[fam],
+                )
+                ax.add_patch(sq)
+
         # Eye-level indicator
         if visible_families and geometry.eye_level <= cabinet_height:
             ax.axhline(
@@ -246,6 +265,13 @@ def plot_cabinets(solution: Solution, geometry: Geometry, visible_families: list
         ax.set_yticks(range(0, cabinet_height + 1, 10))
         ax.grid(axis="y", linestyle=":", alpha=0.4)
 
+    # Family color legend
+    legend_handles = [
+        patches.Patch(facecolor=family_colors[f], edgecolor="black", linewidth=0.5, label=f"F{f}")
+        for f in all_families
+    ]
+    fig.legend(handles=legend_handles, loc="lower center", ncol=len(all_families), fontsize=8, frameon=True)
+
     fig.suptitle("Placement des tiroirs dans les armoires", fontsize=14, fontweight="bold")
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0.04, 1, 1])
     plt.show()

@@ -545,7 +545,110 @@ def add_visibility_constraints(model: cp_model.CpModel, fam_in_bin: dict, variab
     return visibility_deviation
 
 
-def build_objective(model: cp_model.CpModel, families, variables: dict, family_drawer_count: dict, xspan: dict, yspan: dict, visibility_deviation: dict, heavy_z: list, config: SolverConfig):
+def add_family_proximity_objective_terms(model: cp_model.CpModel, families, fam_in_bin: dict, variables: dict, geometry: Geometry, config: SolverConfig):
+    if (
+        config.family_cabinet_span_weight == 0
+        and config.family_height_span_weight == 0
+    ):
+        return {}, {}
+
+    max_bin_slots = variables["max_bin_slots"]
+    max_cabinet_slots = variables["max_cabinet_slots"]
+    Z_of_bin = variables["Z_of_bin"]
+    occupied_height_of_bin = variables["occupied_height_of_bin"]
+    cabinet_of_bin = variables["cabinet_of_bin"]
+    occ_h_ub = variables["occ_h_ub"]
+
+    max_cabinet_idx = max_cabinet_slots - 1
+    center_ub = 2 * geometry.cabinet_height + occ_h_ub
+
+    # Doubled vertical center of each bin:
+    # center = 2 * Z + occupied_height
+    center_of_bin = []
+    for k in range(max_bin_slots):
+        center_k = model.new_int_var(0, center_ub, f"bin_center[{k}]")
+        model.add(center_k == 2 * Z_of_bin[k] + occupied_height_of_bin[k])
+        center_of_bin.append(center_k)
+
+    family_cabinet_span = {}
+    family_height_span = {}
+
+    for f in families:
+        # Whether family f appears in at least one bin.
+        family_present = model.new_bool_var(f"family_present[{f}]")
+        model.add_max_equality(
+            family_present,
+            [fam_in_bin[f, k] for k in range(max_bin_slots)],
+        )
+
+        cabinet_values_for_max = []
+        cabinet_values_for_min = []
+        center_values_for_max = []
+        center_values_for_min = []
+
+        for k in range(max_bin_slots):
+            # Sentinels:
+            # - for max: absent bins contribute 0
+            # - for min: absent bins contribute upper bound
+            cabinet_max_val = model.new_int_var(
+                0, max_cabinet_idx, f"fam_cab_max_val[{f},{k}]"
+            )
+            cabinet_min_val = model.new_int_var(
+                0, max_cabinet_idx, f"fam_cab_min_val[{f},{k}]"
+            )
+            center_max_val = model.new_int_var(
+                0, center_ub, f"fam_center_max_val[{f},{k}]"
+            )
+            center_min_val = model.new_int_var(
+                0, center_ub, f"fam_center_min_val[{f},{k}]"
+            )
+
+            model.add(cabinet_max_val == cabinet_of_bin[k]).only_enforce_if(fam_in_bin[f, k])
+            model.add(cabinet_max_val == 0).only_enforce_if(fam_in_bin[f, k].Not())
+
+            model.add(cabinet_min_val == cabinet_of_bin[k]).only_enforce_if(fam_in_bin[f, k])
+            model.add(cabinet_min_val == max_cabinet_idx).only_enforce_if(fam_in_bin[f, k].Not())
+
+            model.add(center_max_val == center_of_bin[k]).only_enforce_if(fam_in_bin[f, k])
+            model.add(center_max_val == 0).only_enforce_if(fam_in_bin[f, k].Not())
+
+            model.add(center_min_val == center_of_bin[k]).only_enforce_if(fam_in_bin[f, k])
+            model.add(center_min_val == center_ub).only_enforce_if(fam_in_bin[f, k].Not())
+
+            cabinet_values_for_max.append(cabinet_max_val)
+            cabinet_values_for_min.append(cabinet_min_val)
+            center_values_for_max.append(center_max_val)
+            center_values_for_min.append(center_min_val)
+
+        cabinet_max = model.new_int_var(0, max_cabinet_idx, f"family_cabinet_max[{f}]")
+        cabinet_min = model.new_int_var(0, max_cabinet_idx, f"family_cabinet_min[{f}]")
+        center_max = model.new_int_var(0, center_ub, f"family_center_max[{f}]")
+        center_min = model.new_int_var(0, center_ub, f"family_center_min[{f}]")
+
+        model.add_max_equality(cabinet_max, cabinet_values_for_max)
+        model.add_min_equality(cabinet_min, cabinet_values_for_min)
+        model.add_max_equality(center_max, center_values_for_max)
+        model.add_min_equality(center_min, center_values_for_min)
+
+        family_cabinet_span[f] = model.new_int_var(
+            0, max_cabinet_idx, f"family_cabinet_span[{f}]"
+        )
+        family_height_span[f] = model.new_int_var(
+            0, center_ub, f"family_height_span[{f}]"
+        )
+
+        # If family absent: spans are 0.
+        model.add(family_cabinet_span[f] == 0).only_enforce_if(family_present.Not())
+        model.add(family_height_span[f] == 0).only_enforce_if(family_present.Not())
+
+        # If family present: spans are max - min.
+        model.add(family_cabinet_span[f] == cabinet_max - cabinet_min).only_enforce_if(family_present)
+        model.add(family_height_span[f] == center_max - center_min).only_enforce_if(family_present)
+
+    return family_cabinet_span, family_height_span
+
+
+def build_objective(model: cp_model.CpModel, families, variables: dict, family_drawer_count: dict, xspan: dict, yspan: dict, visibility_deviation: dict, heavy_z: list, family_cabinet_span: dict, family_height_span: dict, config: SolverConfig):
     max_bin_slots = variables["max_bin_slots"]
 
     obj = (
@@ -562,6 +665,12 @@ def build_objective(model: cp_model.CpModel, families, variables: dict, family_d
 
     if heavy_z:
         obj += config.heavy_weight * sum(heavy_z)
+
+    if family_cabinet_span:
+        obj += config.family_cabinet_span_weight * sum(family_cabinet_span.values())
+
+    if family_height_span:
+        obj += config.family_height_span_weight * sum(family_height_span.values())
 
     model.minimize(obj)
 
@@ -581,7 +690,20 @@ def build_model(items: list[Item], families, bin_types: list[BinType], geometry:
     add_cabinet_constraints(model, items, variables, geometry)
     visibility_deviation = add_visibility_constraints(model, fam_in_bin, variables, geometry, visible_families or [], config)
     heavy_z = add_heavy_item_constraints(model, items, variables, geometry)
+    family_cabinet_span, family_height_span = add_family_proximity_objective_terms(model, families, fam_in_bin, variables, geometry, config)
 
-    build_objective(model, families, variables, family_drawer_count, xspan, yspan, visibility_deviation, heavy_z, config)
+    build_objective(
+        model,
+        families,
+        variables,
+        family_drawer_count,
+        xspan,
+        yspan,
+        visibility_deviation,
+        heavy_z,
+        family_cabinet_span,
+        family_height_span,
+        config,
+    )
 
     return model, variables
