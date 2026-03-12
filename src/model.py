@@ -174,7 +174,10 @@ def add_family_constraints(model: cp_model.CpModel, items: list[Item], families,
     return fam_in_bin, family_drawer_count
 
 
-def add_spatial_span_constraints(model: cp_model.CpModel, items: list[Item], families, is_in: dict, fam_in_bin: dict, variables: dict):
+def add_spatial_span_constraints(model: cp_model.CpModel, items: list[Item], families, is_in: dict, fam_in_bin: dict, variables: dict, config: SolverConfig):
+    if config.span_weight == 0:
+        return {}, {}
+
     max_bin_slots = variables["max_bin_slots"]
     x = variables["x"]
     y = variables["y"]
@@ -558,8 +561,10 @@ def build_objective(model: cp_model.CpModel, families, variables: dict, family_d
         config.cabinet_weight * sum(variables["used_cabinet"])
         + config.bin_weight * sum(variables["used_bin"])
         + config.family_weight * sum(family_drawer_count[f] for f in families)
-        + config.span_weight * sum(xspan[f, k] + yspan[f, k] for f in families for k in range(max_bin_slots))
     )
+
+    if config.span_weight != 0 and xspan and yspan:
+        obj += config.span_weight * sum(xspan[f, k] + yspan[f, k] for f in families for k in range(max_bin_slots))
 
     if visibility_deviation:
         obj += config.visibility_weight * sum(visibility_deviation.values())
@@ -577,7 +582,7 @@ def build_model(items: list[Item], families, bin_types: list[BinType], geometry:
 
     is_in = add_placement_constraints(model, items, variables)
     fam_in_bin, family_drawer_count = add_family_constraints(model, items, families, is_in, variables)
-    xspan, yspan = add_spatial_span_constraints(model, items, families, is_in, fam_in_bin, variables)
+    xspan, yspan = add_spatial_span_constraints(model, items, families, is_in, fam_in_bin, variables, config)
     add_non_overlap_constraints(model, items, variables, geometry.separator)
     add_weight_constraints(model, items, is_in, variables)
     add_bin_height_constraints(model, items, is_in, variables)
