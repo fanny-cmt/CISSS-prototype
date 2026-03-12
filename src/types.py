@@ -84,3 +84,6 @@ class SolverConfig:
     heavy_weight: int = 100
     family_cabinet_span_weight: int = 1
     family_height_span_weight: int = 1
+
+    # Constraint variant
+    use_global_nooverlap: bool = True

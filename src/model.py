@@ -259,6 +259,52 @@ def add_non_overlap_constraints(model: cp_model.CpModel, items: list[Item], vari
             model.add_implication(below_ji, same_bin)
 
 
+def add_non_overlap_constraints_global(model: cp_model.CpModel, items: list[Item], is_in: dict, variables: dict, separator: int):
+    """Non-overlap using one AddNoOverlap2D per bin slot with optional interval variables."""
+    num_items = len(items)
+    max_bin_slots = variables["max_bin_slots"]
+    x = variables["x"]
+    y = variables["y"]
+    eff_w = variables["eff_w"]
+    eff_d = variables["eff_d"]
+    max_W = variables["max_W"]
+    max_D = variables["max_D"]
+
+    for k in range(max_bin_slots):
+        x_intervals = []
+        y_intervals = []
+
+        for i in range(num_items):
+            if (i, k) not in is_in:
+                continue
+
+            # Size includes separator so NoOverlap2D enforces the gap
+            size_x = model.new_int_var(0, max_W + separator, f"sx[{i},{k}]")
+            size_y = model.new_int_var(0, max_D + separator, f"sy[{i},{k}]")
+            end_x = model.new_int_var(0, 2 * max_W + separator, f"ex[{i},{k}]")
+            end_y = model.new_int_var(0, 2 * max_D + separator, f"ey[{i},{k}]")
+
+            model.add(size_x == eff_w[i] + separator).only_enforce_if(is_in[i, k])
+            model.add(size_x == 0).only_enforce_if(is_in[i, k].Not())
+            model.add(size_y == eff_d[i] + separator).only_enforce_if(is_in[i, k])
+            model.add(size_y == 0).only_enforce_if(is_in[i, k].Not())
+
+            model.add(end_x == x[i] + size_x)
+            model.add(end_y == y[i] + size_y)
+
+            ix = model.new_optional_interval_var(
+                x[i], size_x, end_x, is_in[i, k], f"ix[{i},{k}]"
+            )
+            iy = model.new_optional_interval_var(
+                y[i], size_y, end_y, is_in[i, k], f"iy[{i},{k}]"
+            )
+            x_intervals.append(ix)
+            y_intervals.append(iy)
+
+        if x_intervals:
+            model.add_no_overlap_2d(x_intervals, y_intervals)
+
+
 def add_weight_constraints(model: cp_model.CpModel, items: list[Item], is_in: dict, variables: dict):
     max_bin_slots = variables["max_bin_slots"]
     max_weight_of_bin = variables["max_weight_of_bin"]
@@ -436,7 +482,18 @@ def add_cabinet_constraints(model: cp_model.CpModel, items: list[Item], variable
         >= (min_bin_height + drawer_gap) * sum(used_bin)
     )
 
-    # Non-overlap on Z axis for bins in the same cabinet
+    return bin_in_cabinet
+
+
+def add_cabinet_z_nooverlap(model: cp_model.CpModel, variables: dict, geometry: Geometry):
+    """Pairwise Z-axis non-overlap for bins in the same cabinet."""
+    max_bin_slots = variables["max_bin_slots"]
+    used_bin = variables["used_bin"]
+    occupied_height_of_bin = variables["occupied_height_of_bin"]
+    Z_of_bin = variables["Z_of_bin"]
+    cabinet_of_bin = variables["cabinet_of_bin"]
+    drawer_gap = geometry.drawer_gap
+
     for k in range(max_bin_slots):
         for m in range(k + 1, max_bin_slots):
             same_cabinet = model.new_bool_var(f"same_cabinet[{k},{m}]")
@@ -453,7 +510,6 @@ def add_cabinet_constraints(model: cp_model.CpModel, items: list[Item], variable
                 Z_of_bin[k] + occupied_height_of_bin[k] + drawer_gap <= Z_of_bin[m]
             ).only_enforce_if(m_above_k)
 
-            # If two used bins are in the same cabinet, one must be above the other
             model.add_bool_or([
                 k_above_m,
                 m_above_k,
@@ -469,6 +525,41 @@ def add_cabinet_constraints(model: cp_model.CpModel, items: list[Item], variable
             model.add_implication(m_above_k, used_bin[k])
             model.add_implication(m_above_k, used_bin[m])
             model.add_implication(m_above_k, same_cabinet)
+
+
+def add_cabinet_z_nooverlap_global(model: cp_model.CpModel, bin_in_cabinet: dict, variables: dict, geometry: Geometry):
+    """Z-axis non-overlap using one NoOverlap per cabinet with optional interval variables."""
+    max_bin_slots = variables["max_bin_slots"]
+    max_cabinet_slots = variables["max_cabinet_slots"]
+    Z_of_bin = variables["Z_of_bin"]
+    occupied_height_of_bin = variables["occupied_height_of_bin"]
+    cabinet_height = geometry.cabinet_height
+    drawer_gap = geometry.drawer_gap
+    occ_h_ub = variables["occ_h_ub"]
+
+    for c in range(max_cabinet_slots):
+        intervals = []
+
+        for k in range(max_bin_slots):
+            if (k, c) not in bin_in_cabinet:
+                continue
+
+            # Size = occupied_height + drawer_gap (gap acts as spacing)
+            size_z = model.new_int_var(0, occ_h_ub + drawer_gap, f"sz_cab[{k},{c}]")
+            end_z = model.new_int_var(0, cabinet_height + drawer_gap, f"ez_cab[{k},{c}]")
+
+            model.add(size_z == occupied_height_of_bin[k] + drawer_gap).only_enforce_if(bin_in_cabinet[k, c])
+            model.add(size_z == 0).only_enforce_if(bin_in_cabinet[k, c].Not())
+            model.add(end_z == Z_of_bin[k] + size_z)
+
+            iv = model.new_optional_interval_var(
+                Z_of_bin[k], size_z, end_z, bin_in_cabinet[k, c], f"iz_cab[{k},{c}]"
+            )
+            intervals.append(iv)
+
+        if intervals:
+            model.add_no_overlap(intervals)
+
 
 def add_heavy_item_constraints(model: cp_model.CpModel, items: list[Item], variables: dict, geometry: Geometry):
     """Create Z-height variables for heavy items.
@@ -683,11 +774,18 @@ def build_model(items: list[Item], families, bin_types: list[BinType], geometry:
     is_in = add_placement_constraints(model, items, variables)
     fam_in_bin, family_drawer_count = add_family_constraints(model, items, families, is_in, variables)
     xspan, yspan = add_spatial_span_constraints(model, items, families, is_in, fam_in_bin, variables, config)
-    add_non_overlap_constraints(model, items, variables, geometry.separator)
+    if config.use_global_nooverlap:
+        add_non_overlap_constraints_global(model, items, is_in, variables, geometry.separator)
+    else:
+        add_non_overlap_constraints(model, items, variables, geometry.separator)
     add_weight_constraints(model, items, is_in, variables)
     add_bin_height_constraints(model, items, is_in, variables)
     add_area_constraints(model, items, is_in, variables)
-    add_cabinet_constraints(model, items, variables, geometry)
+    bin_in_cabinet = add_cabinet_constraints(model, items, variables, geometry)
+    if config.use_global_nooverlap:
+        add_cabinet_z_nooverlap_global(model, bin_in_cabinet, variables, geometry)
+    else:
+        add_cabinet_z_nooverlap(model, variables, geometry)
     visibility_deviation = add_visibility_constraints(model, fam_in_bin, variables, geometry, visible_families or [], config)
     heavy_z = add_heavy_item_constraints(model, items, variables, geometry)
     family_cabinet_span, family_height_span = add_family_proximity_objective_terms(model, families, fam_in_bin, variables, geometry, config)
