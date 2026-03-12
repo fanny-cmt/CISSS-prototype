@@ -148,10 +148,6 @@ def add_family_constraints(model: cp_model.CpModel, items: list[Item], families,
         for k in range(max_bin_slots):
             fam_in_bin[f, k] = model.new_bool_var(f"fam_{f}_in_bin_{k}")
 
-    for i, item in enumerate(items):
-        for k in range(min(i + 1, max_bin_slots)):
-            model.add_implication(is_in[i, k], fam_in_bin[item.family, k])
-
     for f in families:
         items_f = [i for i, item in enumerate(items) if item.family == f]
 
